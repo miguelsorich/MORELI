@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-jungla: #2A5A29;
+    --color-crudo: #F0EEEF;
+    --color-kraft: #9F7652;
+    --color-yute: #B89C71;
+    --color-musgo: #648D4B;
+    --color-sombra: #535456;
+  }
+
+  body {
+    background-color: #f7f6f5;
+    color: #2b2b2b;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  }
+}
+
+/* Custom theme color utility classes */
+.bg-moreli-jungla { background-color: #2A5A29; }
+.bg-moreli-jungla-dark { background-color: #1e421d; }
+.bg-moreli-crudo { background-color: #F0EEEF; }
+.bg-moreli-kraft { background-color: #9F7652; }
+.bg-moreli-kraft-light { background-color: #ba936f; }
+.bg-moreli-yute { background-color: #B89C71; }
+.bg-moreli-musgo { background-color: #648D4B; }
+.bg-moreli-musgo-light { background-color: #7ba860; }
+.bg-moreli-sombra { background-color: #535456; }
+.bg-moreli-sombra-dark { background-color: #3b3c3e; }
+
+.text-moreli-jungla { color: #2A5A29; }
+.text-moreli-crudo { color: #F0EEEF; }
+.text-moreli-kraft { color: #9F7652; }
+.text-moreli-yute { color: #B89C71; }
+.text-moreli-musgo { color: #648D4B; }
+.text-moreli-sombra { color: #535456; }
+
+.border-moreli-jungla { border-color: #2A5A29; }
+.border-moreli-crudo { border-color: #F0EEEF; }
+.border-moreli-kraft { border-color: #9F7652; }
+.border-moreli-yute { border-color: #B89C71; }
+.border-moreli-musgo { border-color: #648D4B; }
+.border-moreli-sombra { border-color: #535456; }
+
+.ring-moreli-jungla { --tw-ring-color: #2A5A29; }
+.ring-moreli-musgo { --tw-ring-color: #648D4B; }
+.ring-moreli-kraft { --tw-ring-color: #9F7652; }

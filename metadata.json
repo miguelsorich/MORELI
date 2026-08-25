@@ -1,0 +1,6 @@
+{
+  "name": "Moreli - Gestión de Inventario & Ventas",
+  "description": "Sistema integral de gestión de inventario y ventas de prendas Moreli con variantes de color, tallas brasileras, códigos SKU automáticos, registro de ventas con retiro automático de catálogo, reportes de ingresos en Bolivianos (Bs.) y plantillas Excel (.xlsx).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
