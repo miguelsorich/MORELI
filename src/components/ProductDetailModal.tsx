@@ -19,7 +19,10 @@ import {
   MessageCircle,
   ExternalLink,
   Copy,
-  Loader2
+  Loader2,
+  Maximize2,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -40,10 +43,18 @@ export const ProductDetailModal: React.FC = () => {
   const [selectedVariante, setSelectedVariante] = useState<Variante | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [modalImgError, setModalImgError] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxZoom, setLightboxZoom] = useState(1);
 
   useEffect(() => {
     setModalImgError(false);
   }, [articuloDetalle?.foto]);
+
+  useEffect(() => {
+    if (!isLightboxOpen) {
+      setLightboxZoom(1);
+    }
+  }, [isLightboxOpen]);
 
   if (!articuloDetalle) return null;
 
@@ -194,7 +205,7 @@ export const ProductDetailModal: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-6 items-start">
               
               {/* Product Photo / Placeholder */}
-              <div className="w-full sm:w-48 h-48 rounded-2xl bg-[#F0EEEF] border border-stone-200 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-2xs group">
+              <div className="w-full sm:w-60 h-80 sm:h-60 rounded-2xl bg-[#EFECE9] border border-stone-200 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-2xs group select-none">
                 {isUploadingPhoto ? (
                   <div className="flex flex-col items-center justify-center gap-2 text-[#2A5A29] p-4 text-center">
                     <Loader2 className="w-8 h-8 animate-spin text-[#2A5A29]" />
@@ -202,15 +213,43 @@ export const ProductDetailModal: React.FC = () => {
                     <span className="text-[10px] text-stone-500">Un momento por favor</span>
                   </div>
                 ) : articuloDetalle.foto && !modalImgError ? (
-                  <img
-                    src={articuloDetalle.foto}
-                    alt={articuloDetalle.nombre}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
-                    onError={() => {
-                      setModalImgError(true);
+                  <div
+                    onClick={() => setIsLightboxOpen(true)}
+                    className="w-full h-full relative cursor-pointer flex items-center justify-center overflow-hidden"
+                    title="Toca para ampliar foto completa"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setIsLightboxOpen(true);
+                      }
                     }}
-                  />
+                  >
+                    {/* Ambient blurred backdrop for luxury fashion feel */}
+                    <img
+                      src={articuloDetalle.foto}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 scale-125 pointer-events-none"
+                    />
+
+                    {/* Uncropped crisp garment photo */}
+                    <img
+                      src={articuloDetalle.foto}
+                      alt={articuloDetalle.nombre}
+                      referrerPolicy="no-referrer"
+                      className="relative z-10 max-w-full max-h-full object-contain p-1.5 transition-transform duration-300 group-hover:scale-[1.02]"
+                      onError={() => {
+                        setModalImgError(true);
+                      }}
+                    />
+
+                    {/* Mobile & Desktop Tap to Expand Badge */}
+                    <div className="absolute top-2.5 left-2.5 z-20 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/60 hover:bg-black/80 backdrop-blur-md text-white text-[11px] font-semibold shadow-xs transition-all pointer-events-none">
+                      <Maximize2 className="w-3.5 h-3.5 text-white" />
+                      <span>Toca para ampliar</span>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center text-stone-400 p-4 text-center">
                     <ShirtIcon className="w-10 h-10 stroke-[1.5] text-[#9F7652] mb-1.5" />
@@ -220,10 +259,13 @@ export const ProductDetailModal: React.FC = () => {
                 )}
 
                 {isAdmin && !isUploadingPhoto && (
-                  <div className="absolute bottom-2 right-2 z-10">
+                  <div className="absolute bottom-2.5 right-2.5 z-30">
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/95 hover:bg-white text-stone-800 hover:text-[#2A5A29] shadow-md border border-stone-200 transition-all text-xs font-bold cursor-pointer"
                       title="Cargar o cambiar foto"
                     >
@@ -513,6 +555,133 @@ export const ProductDetailModal: React.FC = () => {
 
         </motion.div>
       </div>
+
+      {/* Fullscreen Photo Lightbox / Zoom for Mobile and Desktop */}
+      <AnimatePresence>
+        {isLightboxOpen && articuloDetalle.foto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col justify-between"
+            onClick={() => setIsLightboxOpen(false)}
+          >
+            {/* Lightbox Header */}
+            <div 
+              className="flex items-center justify-between p-4 sm:p-5 text-white z-30 bg-gradient-to-b from-black/90 via-black/60 to-transparent"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                <span className="px-2.5 py-1 rounded-lg bg-white/20 text-white text-[11px] font-bold uppercase tracking-wider">
+                  {articuloDetalle.categoria}
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-bold text-white truncate">
+                    {articuloDetalle.nombre}
+                  </h3>
+                  <span className="text-[11px] font-mono text-stone-300">
+                    {articuloDetalle.sku || ''}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Zoom toggle button */}
+                <button
+                  type="button"
+                  onClick={() => setLightboxZoom(prev => prev === 1 ? 2 : 1)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer text-xs font-semibold shadow-sm"
+                  title="Acercar o alejar imagen"
+                >
+                  {lightboxZoom === 1 ? (
+                    <>
+                      <ZoomIn className="w-4 h-4 text-emerald-400" />
+                      <span>Zoom 2x</span>
+                    </>
+                  ) : (
+                    <>
+                      <ZoomOut className="w-4 h-4 text-amber-400" />
+                      <span>Alejar</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Close button */}
+                <button
+                  type="button"
+                  onClick={() => setIsLightboxOpen(false)}
+                  className="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer"
+                  aria-label="Cerrar imagen ampliada"
+                >
+                  <CloseIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Lightbox Center Image Container */}
+            <div 
+              className="flex-1 overflow-auto flex items-center justify-center p-2 sm:p-6 select-none"
+              onClick={() => setLightboxZoom(prev => prev === 1 ? 2 : 1)}
+            >
+              <motion.div
+                key={lightboxZoom}
+                initial={{ scale: 0.96 }}
+                animate={{ scale: lightboxZoom }}
+                transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+                className="flex items-center justify-center max-w-full max-h-full"
+              >
+                <img
+                  src={articuloDetalle.foto}
+                  alt={articuloDetalle.nombre}
+                  referrerPolicy="no-referrer"
+                  className={`max-w-[95vw] sm:max-w-[85vw] max-h-[72vh] sm:max-h-[80vh] object-contain rounded-xl shadow-2xl transition-all ${
+                    lightboxZoom > 1 ? 'cursor-zoom-out' : 'cursor-zoom-in'
+                  }`}
+                />
+              </motion.div>
+            </div>
+
+            {/* Lightbox Footer */}
+            <div 
+              className="p-4 sm:p-5 bg-gradient-to-t from-black/95 via-black/80 to-transparent text-white flex flex-col sm:flex-row items-center justify-between gap-3 z-30"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center sm:text-left">
+                <p className="text-xs text-stone-300">
+                  {lightboxZoom === 1 
+                    ? 'Toca la foto o el botón "Zoom 2x" para inspeccionar tela y detalles' 
+                    : 'Toca la foto para volver a la vista completa'}
+                </p>
+                <p className="text-base font-extrabold text-white mt-0.5">
+                  {formatBolivianos(articuloDetalle.precio)}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLightboxOpen(false);
+                    handleWhatsAppAction();
+                  }}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold text-xs shadow-lg transition-all cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>Comprar por WhatsApp</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLightboxOpen(false)}
+                  className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Volver a la Ficha
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 };
