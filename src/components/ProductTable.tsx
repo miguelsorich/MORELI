@@ -7,8 +7,10 @@ import {
   Edit3, 
   Trash2, 
   ShoppingBag,
-  Shirt
+  Shirt,
+  MessageCircle
 } from 'lucide-react';
+import { MORELI_WALINK_URL, ejecutarConsultaWhatsApp } from '../utils/whatsappUtils';
 
 interface ProductTableProps {
   articulos: Articulo[];
@@ -21,7 +23,8 @@ export const ProductTable: React.FC<ProductTableProps> = ({ articulos }) => {
     setArticuloEdicion, 
     setArticuloEliminar,
     setSellTarget,
-    setQuickStockTarget 
+    setQuickStockTarget,
+    mostrarToast
   } = useInventory();
 
   return (
@@ -191,14 +194,32 @@ export const ProductTable: React.FC<ProductTableProps> = ({ articulos }) => {
                         </button>
                       </div>
                     ) : (
-                      <div className="inline-flex items-center justify-end">
+                      <div className="inline-flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => setArticuloDetalle(art)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#2A5A29] hover:bg-[#1e421d] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold transition-colors cursor-pointer border border-stone-200"
+                          title="Ver tallas y detalles"
                         >
-                          <Eye className="w-3.5 h-3.5 text-[#B89C71]" />
-                          <span>Ver Detalle</span>
+                          <Eye className="w-3.5 h-3.5 text-[#2A5A29]" />
+                          <span>Ver</span>
                         </button>
+
+                        <a
+                          id={`btn-tabla-comprar-${art.id}`}
+                          href={MORELI_WALINK_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => {
+                            ejecutarConsultaWhatsApp({ articulo: art }, () => {
+                              mostrarToast('success', '¡Abriendo WhatsApp!', `Consulta copiada: "${art.nombre}". Abriendo chat con Moreli.`);
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                          title="Comprar o consultar disponibilidad en WhatsApp"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>Comprar</span>
+                        </a>
                       </div>
                     )}
                   </td>

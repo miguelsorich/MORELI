@@ -8,9 +8,11 @@ import {
   Download,
   LogOut,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  MessageCircle
 } from 'lucide-react';
 import { downloadInventoryExcelTemplate } from '../utils/inventoryUtils';
+import { MORELI_WALINK_URL } from '../utils/whatsappUtils';
 
 export const Navbar: React.FC = () => {
   const { 
@@ -169,12 +171,25 @@ export const Navbar: React.FC = () => {
 
             </div>
           ) : (
-            /* Client Portal Nav status */
-            <div className="flex items-center gap-2 text-xs text-[#F0EEEF]">
-              <span className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-[11px] font-semibold">
+            /* Client Portal Nav actions */
+            <div className="flex items-center gap-2">
+              <span className="hidden md:inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-[11px] font-semibold text-[#F0EEEF]">
                 <Sparkles className="w-3 h-3 text-[#B89C71]" />
                 Colección Exclusiva
               </span>
+
+              <a
+                id="btn-nav-whatsapp-consulta"
+                href={MORELI_WALINK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-extrabold shadow-xs hover:shadow transition-all cursor-pointer"
+                title="Consultar o comprar por WhatsApp (walink.co/2bp3yl)"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Comprar por WhatsApp</span>
+                <span className="sm:hidden">WhatsApp</span>
+              </a>
             </div>
           )}
 

@@ -9,9 +9,11 @@ import {
   Shirt,
   ShoppingBag,
   CheckCircle2,
-  Camera
+  Camera,
+  MessageCircle
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { MORELI_WALINK_URL, ejecutarConsultaWhatsApp } from '../utils/whatsappUtils';
 
 interface ProductCardProps {
   articulo: Articulo;
@@ -246,16 +248,51 @@ export const ProductCard: React.FC<ProductCardProps> = ({ articulo }) => {
               >
                 <Trash2 className="w-4 h-4" />
               </button>
+
+              <a
+                href={MORELI_WALINK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  ejecutarConsultaWhatsApp({ articulo }, () => {
+                    mostrarToast('success', '¡Abriendo WhatsApp!', `Consulta copiada: "${articulo.nombre}". Abriendo chat con Moreli.`);
+                  });
+                }}
+                className="p-1.5 rounded-xl text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                title="Probar enlace WhatsApp (wa.link)"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </a>
             </div>
           ) : (
-            <button
-              id={`btn-cliente-ver-${articulo.id}`}
-              onClick={() => setArticuloDetalle(articulo)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2A5A29] hover:bg-[#1e421d] text-white text-xs font-bold shadow-xs hover:shadow transition-all cursor-pointer"
-            >
-              <Eye className="w-3.5 h-3.5 text-[#B89C71]" />
-              <span>Ver Prenda</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                id={`btn-cliente-ver-${articulo.id}`}
+                onClick={() => setArticuloDetalle(articulo)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#F0EEEF] hover:bg-stone-200 text-stone-800 text-xs font-bold transition-colors cursor-pointer border border-stone-200"
+                title="Ver detalles, tallas y colores"
+              >
+                <Eye className="w-3.5 h-3.5 text-[#2A5A29]" />
+                <span>Ver</span>
+              </button>
+
+              <a
+                id={`btn-comprar-whatsapp-${articulo.id}`}
+                href={MORELI_WALINK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  ejecutarConsultaWhatsApp({ articulo }, () => {
+                    mostrarToast('success', '¡Abriendo WhatsApp!', `Consulta copiada: "${articulo.nombre}". Abriendo chat de compra con Moreli.`);
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold shadow-xs hover:shadow transition-all cursor-pointer"
+                title="Comprar o consultar disponibilidad en WhatsApp (walink.co/2bp3yl)"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>Comprar</span>
+              </a>
+            </div>
           )}
         </div>
 
