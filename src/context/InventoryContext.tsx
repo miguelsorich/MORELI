@@ -96,6 +96,10 @@ const FILTRO_INICIAL: FiltroInventario = {
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
+const syncChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
+  ? new BroadcastChannel('moreli_inventory_channel_v1')
+  : null;
+
 export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load persisted articles (only items with stock)
   const [articulos, setArticulos] = useState<Articulo[]>(() => {
@@ -166,6 +170,64 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Toast notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Hydrate from server database on mount & synchronize across tabs / buyer devices
+  useEffect(() => {
+    let isMounted = true;
+
+    const cargarDesdeServidor = async () => {
+      try {
+        const res = await fetch('/api/inventario');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && isMounted) {
+            if (Array.isArray(data.articulos) && data.articulos.length > 0) {
+              setArticulos(data.articulos);
+            }
+            if (Array.isArray(data.categorias) && data.categorias.length > 0) {
+              setCategorias(data.categorias);
+            }
+            if (Array.isArray(data.ventas)) {
+              setVentas(data.ventas);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Iniciando con datos locales de catálogo:', e);
+      }
+    };
+
+    cargarDesdeServidor();
+
+    // Listen to broadcast messages from other tabs / windows
+    if (syncChannel) {
+      syncChannel.onmessage = (event) => {
+        if (event.data?.type === 'SYNC_REQUEST') {
+          cargarDesdeServidor();
+        } else if (event.data?.type === 'ARTICLE_UPDATED' && event.data?.articulo) {
+          const updated: Articulo = event.data.articulo;
+          setArticulos(prev => prev.map(a => a.id === updated.id ? updated : a));
+          setArticuloDetalle(prev => prev?.id === updated.id ? updated : prev);
+        }
+      };
+    }
+
+    // Refresh when buyer switches back to this window or tab
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        cargarDesdeServidor();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, []);
 
   // Persist to local storage
   useEffect(() => {
@@ -287,6 +349,17 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setCategorias(prev => [...prev, nuevo.categoria]);
       }
 
+      // Persist to server database
+      fetch('/api/inventario/articulo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(articuloCompleto)
+      }).catch(err => console.error('Error guardando artículo en servidor:', err));
+
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'SYNC_REQUEST' });
+      }
+
       mostrarToast('success', 'Prenda Registrada', `"${nuevo.nombre}" con código ${autoProductSku} fue añadida al catálogo.`);
       return true;
     } catch (e) {
@@ -299,44 +372,56 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const actualizarArticulo = (id: string, actualizacion: Partial<Articulo>): boolean => {
     try {
       const now = new Date().toISOString();
+      const existing = articulos.find(a => a.id === id);
+      if (!existing) return false;
+
+      const productSku = actualizacion.sku || existing.sku || generateAutoProductSku(actualizacion.categoria || existing.categoria, articulos);
+      
+      let variantesActualizadas = actualizacion.variantes ? actualizacion.variantes : existing.variantes;
+      variantesActualizadas = variantesActualizadas.map((v, idx) => ({
+        ...v,
+        id: v.id || `var-${id}-${idx + 1}`,
+        colorHex: v.colorHex || getHexForColor(v.color),
+        sku: v.sku || generateAutoVariantSku(productSku, v.color, v.talla)
+      })).filter(v => v.cantidad > 0); // Remove 0 stock variants
+
+      const totalStock = variantesActualizadas.reduce((sum, v) => sum + (v.cantidad || 0), 0);
+
       let articuloActualizado: Articulo | null = null;
+      if (totalStock > 0) {
+        articuloActualizado = {
+          ...existing,
+          ...actualizacion,
+          sku: productSku,
+          variantes: variantesActualizadas,
+          fechaActualizacion: now
+        };
+      }
 
       setArticulos(prev => {
-        const nextList: Articulo[] = [];
-        for (const art of prev) {
-          if (art.id === id) {
-            const productSku = actualizacion.sku || art.sku || generateAutoProductSku(actualizacion.categoria || art.categoria, prev);
-            
-            let variantesActualizadas = actualizacion.variantes ? actualizacion.variantes : art.variantes;
-            variantesActualizadas = variantesActualizadas.map((v, idx) => ({
-              ...v,
-              id: v.id || `var-${id}-${idx + 1}`,
-              colorHex: v.colorHex || getHexForColor(v.color),
-              sku: v.sku || generateAutoVariantSku(productSku, v.color, v.talla)
-            })).filter(v => v.cantidad > 0); // Remove 0 stock variants
-
-            const totalStock = variantesActualizadas.reduce((sum, v) => sum + (v.cantidad || 0), 0);
-
-            // If 0 stock remains, automatically remove from active inventory
-            if (totalStock > 0) {
-              articuloActualizado = {
-                ...art,
-                ...actualizacion,
-                sku: productSku,
-                variantes: variantesActualizadas,
-                fechaActualizacion: now
-              };
-              nextList.push(articuloActualizado);
-            }
-          } else {
-            nextList.push(art);
-          }
+        if (articuloActualizado) {
+          return prev.map(art => art.id === id ? articuloActualizado! : art);
+        } else {
+          return prev.filter(art => art.id !== id);
         }
-        return nextList;
       });
 
       if (articuloDetalle && articuloDetalle.id === id) {
         setArticuloDetalle(articuloActualizado);
+      }
+
+      // Persist directly to server database
+      fetch(`/api/inventario/articulo/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(actualizacion)
+      }).catch(err => {
+        console.error('Error sincronizando con el servidor:', err);
+      });
+
+      // Broadcast update across tabs so buyers immediately see changes/photos
+      if (syncChannel && articuloActualizado) {
+        syncChannel.postMessage({ type: 'ARTICLE_UPDATED', articulo: articuloActualizado });
       }
 
       mostrarToast('success', 'Cambios guardados', 'El catálogo ha sido actualizado.');
@@ -355,6 +440,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (articuloDetalle?.id === id) setArticuloDetalle(null);
       if (articuloEdicion?.id === id) setArticuloEdicion(null);
 
+      // Persist to server
+      fetch(`/api/inventario/articulo/${id}`, {
+        method: 'DELETE'
+      }).catch(err => console.error('Error eliminando artículo en servidor:', err));
+
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'SYNC_REQUEST' });
+      }
+
       mostrarToast('info', 'Prenda eliminada', `"${objetivo?.nombre || 'Artículo'}" ha sido retirado del inventario.`);
       return true;
     } catch (e) {
@@ -371,6 +465,8 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     esDelta = false
   ) => {
     const now = new Date().toISOString();
+    let articuloActualizado: Articulo | null = null;
+
     setArticulos(prev => {
       const nextList: Articulo[] = [];
       
@@ -389,15 +485,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const totalStock = variantes.reduce((sum, v) => sum + (v.cantidad || 0), 0);
           
           if (totalStock > 0) {
-            const actualizado = {
+            articuloActualizado = {
               ...art,
               variantes,
               fechaActualizacion: now
             };
             if (articuloDetalle && articuloDetalle.id === articuloId) {
-              setArticuloDetalle(actualizado);
+              setArticuloDetalle(articuloActualizado);
             }
-            nextList.push(actualizado);
+            nextList.push(articuloActualizado);
           } else {
             // Auto removed from active list
             if (articuloDetalle && articuloDetalle.id === articuloId) {
@@ -411,6 +507,18 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       return nextList;
     });
+
+    if (articuloActualizado) {
+      fetch(`/api/inventario/articulo/${articuloId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variantes: (articuloActualizado as Articulo).variantes })
+      }).catch(err => console.error('Error actualizando stock en servidor:', err));
+
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'ARTICLE_UPDATED', articulo: articuloActualizado });
+      }
+    }
   };
 
   /**
@@ -496,6 +604,22 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return nextList;
       });
 
+      // Persist sale to server database
+      fetch('/api/inventario/venta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          venta: nuevaVenta,
+          articuloId: articulo.id,
+          varianteId: targetVar.id,
+          cantidadVendida: cantARestar
+        })
+      }).catch(err => console.error('Error registrando venta en servidor:', err));
+
+      if (syncChannel) {
+        syncChannel.postMessage({ type: 'SYNC_REQUEST' });
+      }
+
       mostrarToast(
         'success',
         '¡Venta Registrada Exitosamente!',
@@ -519,12 +643,25 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const importarArticulosExcel = (nuevosArticulos: Articulo[], nuevasCategorias: string[]) => {
     if (nuevosArticulos.length === 0) return;
 
-    setCategorias(prev => {
-      const merged = new Set([...prev, ...nuevasCategorias]);
-      return Array.from(merged);
-    });
+    const actualizadasCats = Array.from(new Set([...categorias, ...nuevasCategorias]));
+    const actualizadosArts = [...nuevosArticulos, ...articulos];
 
-    setArticulos(prev => [...nuevosArticulos, ...prev]);
+    setCategorias(actualizadasCats);
+    setArticulos(actualizadosArts);
+
+    fetch('/api/inventario/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        articulos: actualizadosArts,
+        categorias: actualizadasCats,
+        ventas
+      })
+    }).catch(err => console.error('Error sincronizando lote en servidor:', err));
+
+    if (syncChannel) {
+      syncChannel.postMessage({ type: 'SYNC_REQUEST' });
+    }
 
     mostrarToast(
       'success', 
@@ -541,6 +678,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     localStorage.removeItem(STORAGE_KEY_ARTICULOS);
     localStorage.removeItem(STORAGE_KEY_CATEGORIAS);
     localStorage.removeItem(STORAGE_KEY_VENTAS);
+
+    fetch('/api/inventario/reset', { method: 'POST' })
+      .catch(err => console.error('Error restableciendo catálogo en servidor:', err));
+
+    if (syncChannel) {
+      syncChannel.postMessage({ type: 'SYNC_REQUEST' });
+    }
+
     mostrarToast('info', 'Datos restablecidos', 'Se cargó el catálogo y reporte de muestra Moreli en Bolivianos.');
   };
 
@@ -573,6 +718,21 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (Array.isArray(parsed.ventas)) {
           setVentas(parsed.ventas);
         }
+
+        fetch('/api/inventario/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            articulos: parsed.articulos,
+            categorias: parsed.categorias,
+            ventas: parsed.ventas || []
+          })
+        }).catch(err => console.error('Error sincronizando JSON en servidor:', err));
+
+        if (syncChannel) {
+          syncChannel.postMessage({ type: 'SYNC_REQUEST' });
+        }
+
         mostrarToast('success', 'Respaldo restaurado', `Se importaron ${parsed.articulos.length} artículos y ${(parsed.ventas || []).length} ventas.`);
         return true;
       }

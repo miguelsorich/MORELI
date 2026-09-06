@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import { formatBolivianos } from '../utils/inventoryUtils';
 import { MORELI_WALINK_URL, ejecutarConsultaWhatsApp, generarMensajeWhatsApp } from '../utils/whatsappUtils';
+import { compressImage } from '../utils/imageCompression';
 import { Variante } from '../types/inventory';
 import { 
   X as CloseIcon, 
@@ -55,7 +56,9 @@ export const ProductDetailModal: React.FC = () => {
     );
   };
 
-  const handleModalPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const handleModalPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -64,16 +67,20 @@ export const ProductDetailModal: React.FC = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        actualizarArticulo(articuloDetalle.id, { foto: result });
-        setArticuloDetalle({ ...articuloDetalle, foto: result });
-        mostrarToast('success', 'Foto Actualizada', `Se guardó la foto para "${articuloDetalle.nombre}".`);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      setIsUploadingPhoto(true);
+      mostrarToast('info', 'Procesando imagen...', 'Optimizando foto para el catálogo...');
+      const compressedDataUrl = await compressImage(file, 1200, 0.82);
+      actualizarArticulo(articuloDetalle.id, { foto: compressedDataUrl });
+      setArticuloDetalle({ ...articuloDetalle, foto: compressedDataUrl });
+      mostrarToast('success', '¡Foto Actualizada!', `La foto de "${articuloDetalle.nombre}" se guardó y está visible para los compradores.`);
+    } catch (err) {
+      console.error('Error processing detail photo:', err);
+      mostrarToast('error', 'Error al subir', 'No se pudo procesar la imagen seleccionada.');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const totalStock = articuloDetalle.variantes.reduce((sum, v) => sum + (Number(v.cantidad) || 0), 0);
@@ -280,7 +287,7 @@ export const ProductDetailModal: React.FC = () => {
                       rel="noopener noreferrer"
                       onClick={handleWhatsAppAction}
                       className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-extrabold shadow-sm hover:shadow transition-all cursor-pointer flex-shrink-0"
-                      title="Enviar consulta o comprar vía WhatsApp (walink.co/2bp3yl)"
+                      title="Enviar consulta o comprar vía WhatsApp (walink.co/qzd099)"
                     >
                       <MessageCircle className="w-4 h-4" />
                       <span>Comprar por WhatsApp</span>

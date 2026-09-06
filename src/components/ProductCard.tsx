@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { MORELI_WALINK_URL, ejecutarConsultaWhatsApp } from '../utils/whatsappUtils';
+import { compressImage } from '../utils/imageCompression';
 
 interface ProductCardProps {
   articulo: Articulo;
@@ -31,8 +32,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ articulo }) => {
   } = useInventory();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = React.useState(false);
 
-  const handleQuickUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQuickUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -41,15 +43,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({ articulo }) => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        actualizarArticulo(articulo.id, { foto: result });
-        mostrarToast('success', 'Foto Cargada', `Se guardó la foto para "${articulo.nombre}".`);
+    try {
+      setIsUploading(true);
+      mostrarToast('info', 'Procesando imagen...', 'Optimizando foto para el catálogo...');
+      const compressedDataUrl = await compressImage(file, 1200, 0.82);
+      const exito = actualizarArticulo(articulo.id, { foto: compressedDataUrl });
+      if (exito) {
+        mostrarToast('success', '¡Foto Guardada!', `La imagen de "${articulo.nombre}" fue guardada y ya está disponible para los compradores.`);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error processing image:', err);
+      mostrarToast('error', 'Error al procesar', 'No se pudo optimizar la imagen seleccionada.');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const totalStock = articulo.variantes.reduce((sum, v) => sum + (Number(v.cantidad) || 0), 0);
@@ -287,7 +295,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ articulo }) => {
                   });
                 }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold shadow-xs hover:shadow transition-all cursor-pointer"
-                title="Comprar o consultar disponibilidad en WhatsApp (walink.co/2bp3yl)"
+                title="Comprar o consultar disponibilidad en WhatsApp (walink.co/qzd099)"
               >
                 <MessageCircle className="w-3.5 h-3.5" />
                 <span>Comprar</span>

@@ -7,6 +7,7 @@ import {
   generateAutoVariantSku, 
   getHexForColor 
 } from '../utils/inventoryUtils';
+import { compressImage } from '../utils/imageCompression';
 import { 
   X, 
   Plus, 
@@ -137,22 +138,21 @@ export const ProductFormModal: React.FC = () => {
     setErrores({});
   };
 
-  // Image Upload handler (Data URL base64)
-  const handleFileUpload = (file: File) => {
+  // Image Upload handler (Data URL base64 with compression)
+  const handleFileUpload = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       mostrarToast('error', 'Formato inválido', 'Por favor selecciona un archivo de imagen (PNG, JPG, WebP).');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      mostrarToast('warning', 'Imagen grande', 'Recomendamos imágenes de menos de 5MB para mayor rapidez.');
+    try {
+      mostrarToast('info', 'Optimizando foto...', 'Preparando imagen para visualización rápida...');
+      const compressed = await compressImage(file, 1200, 0.82);
+      setFoto(compressed);
+      mostrarToast('success', 'Foto lista', 'La imagen fue cargada correctamente.');
+    } catch (err) {
+      console.error('Error compressing upload in form:', err);
+      mostrarToast('error', 'Error al cargar', 'No se pudo procesar la imagen seleccionada.');
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        setFoto(e.target.result as string);
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   // Add a single variant

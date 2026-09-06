@@ -1,6 +1,6 @@
 import { Articulo, Variante } from '../types/inventory';
 
-export const MORELI_WALINK_URL = 'https://walink.co/2bp3yl';
+export const MORELI_WALINK_URL = 'https://walink.co/qzd099';
 
 export interface WhatsAppInquiryPayload {
   articulo?: Articulo;
