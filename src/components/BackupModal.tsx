@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import { 
   X, 
@@ -8,16 +8,21 @@ import {
   Database, 
   FileSpreadsheet,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Cloud,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { exportInventoryToExcel } from '../utils/inventoryUtils';
+import { syncBatchToFirestore } from '../services/firestoreService';
 
 export const BackupModal: React.FC = () => {
   const { 
     isBackupModalOpen, 
     setIsBackupModalOpen, 
     articulos, 
+    categorias,
+    ventas,
     exportarJSON, 
     importarJSON, 
     restablecerDatosEjemplo,
@@ -25,8 +30,22 @@ export const BackupModal: React.FC = () => {
   } = useInventory();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
   if (!isBackupModalOpen) return null;
+
+  const handleSyncCloud = async () => {
+    try {
+      setIsSyncingCloud(true);
+      await syncBatchToFirestore(articulos, categorias, ventas);
+      mostrarToast('success', 'Nube Sincronizada', 'Todo el catálogo, fotos y ventas están al día en Firebase.');
+    } catch (err) {
+      console.error(err);
+      mostrarToast('error', 'Error de sincronización', 'No se pudo conectar a Firebase Cloud.');
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -82,6 +101,31 @@ export const BackupModal: React.FC = () => {
 
           <div className="space-y-3 my-4">
             
+            {/* 0. Cloud Firebase Synchronization */}
+            <div className="p-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/70 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                  <Cloud className="w-4 h-4 text-emerald-700" />
+                  Nube Firebase Firestore
+                  <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-emerald-600 text-white">
+                    Tiempo Real
+                  </span>
+                </h4>
+                <p className="text-[11px] text-emerald-800/90 mt-0.5">
+                  Tus {articulos.length} prendas, fotos y ventas se respaldan y sincronizan automáticamente con la nube.
+                </p>
+              </div>
+              <button
+                id="btn-sync-cloud-manual"
+                disabled={isSyncingCloud}
+                onClick={handleSyncCloud}
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-xl text-xs font-semibold whitespace-nowrap shadow-xs cursor-pointer transition-all"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                <span>{isSyncingCloud ? 'Subiendo...' : 'Sincronizar'}</span>
+              </button>
+            </div>
+
             {/* 1. Export Excel */}
             <div className="p-3.5 rounded-2xl border border-stone-200 bg-[#F0EEEF] flex items-center justify-between gap-3">
               <div className="min-w-0">

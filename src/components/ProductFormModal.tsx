@@ -145,13 +145,13 @@ export const ProductFormModal: React.FC = () => {
       return;
     }
     try {
-      mostrarToast('info', 'Optimizando foto...', 'Preparando imagen para visualización rápida...');
-      const compressed = await compressImage(file, 1200, 0.82);
+      mostrarToast('info', 'Optimizando foto...', 'Preparando imagen de alta velocidad para el catálogo...');
+      const compressed = await compressImage(file, 520, 0.72);
       setFoto(compressed);
-      mostrarToast('success', 'Foto lista', 'La imagen fue cargada correctamente.');
+      mostrarToast('success', 'Foto lista', 'La imagen fue optimizada y cargada correctamente.');
     } catch (err) {
       console.error('Error compressing upload in form:', err);
-      mostrarToast('error', 'Error al cargar', 'No se pudo procesar la imagen seleccionada.');
+      mostrarToast('error', 'Error al procesar foto', err instanceof Error ? err.message : 'No se pudo procesar la imagen seleccionada.');
     }
   };
 

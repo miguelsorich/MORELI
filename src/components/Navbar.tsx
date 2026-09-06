@@ -80,6 +80,10 @@ export const Navbar: React.FC = () => {
                 <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2A5A29] text-white">
                   Bolivia (Bs.)
                 </span>
+                <span className="hidden md:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2A5A29] text-white border border-[#B89C71]/40" title="Sincronización en la nube con Google Firebase Firestore activa">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Firebase Cloud
+                </span>
                 {isAdmin && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#2A5A29] text-white border border-[#B89C71]">
                     <ShieldCheck className="w-3 h-3 text-[#B89C71]" />

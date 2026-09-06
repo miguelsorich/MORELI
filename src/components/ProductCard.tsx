@@ -10,7 +10,8 @@ import {
   ShoppingBag,
   CheckCircle2,
   Camera,
-  MessageCircle
+  MessageCircle,
+  Loader2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { MORELI_WALINK_URL, ejecutarConsultaWhatsApp } from '../utils/whatsappUtils';
@@ -33,6 +34,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ articulo }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = React.useState(false);
+  const [imgError, setImgError] = React.useState(false);
+
+  React.useEffect(() => {
+    setImgError(false);
+  }, [articulo.foto]);
 
   const handleQuickUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -45,15 +51,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ articulo }) => {
 
     try {
       setIsUploading(true);
-      mostrarToast('info', 'Procesando imagen...', 'Optimizando foto para el catálogo...');
-      const compressedDataUrl = await compressImage(file, 1200, 0.82);
+      mostrarToast('info', 'Optimizando foto...', 'Preparando imagen de alta velocidad...');
+      const compressedDataUrl = await compressImage(file, 520, 0.72);
       const exito = actualizarArticulo(articulo.id, { foto: compressedDataUrl });
       if (exito) {
-        mostrarToast('success', '¡Foto Guardada!', `La imagen de "${articulo.nombre}" fue guardada y ya está disponible para los compradores.`);
+        mostrarToast('success', '¡Foto Guardada!', `La imagen de "${articulo.nombre}" fue guardada y sincronizada.`);
       }
     } catch (err) {
       console.error('Error processing image:', err);
-      mostrarToast('error', 'Error al procesar', 'No se pudo optimizar la imagen seleccionada.');
+      mostrarToast('error', 'Error al procesar', err instanceof Error ? err.message : 'No se pudo optimizar la imagen seleccionada.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -80,14 +86,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ articulo }) => {
         onClick={() => setArticuloDetalle(articulo)}
         className="relative h-48 bg-[#F0EEEF] overflow-hidden cursor-pointer flex items-center justify-center"
       >
-        {articulo.foto ? (
+        {isUploading ? (
+          <div className="flex flex-col items-center justify-center gap-1.5 text-[#2A5A29] p-4 text-center">
+            <Loader2 className="w-7 h-7 animate-spin text-[#2A5A29]" />
+            <span className="text-xs font-bold text-stone-700">Guardando foto...</span>
+          </div>
+        ) : articulo.foto && !imgError ? (
           <img
             src={articulo.foto}
             alt={articulo.nombre}
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
+            onError={() => {
+              setImgError(true);
             }}
           />
         ) : (

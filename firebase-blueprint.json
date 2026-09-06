@@ -1,0 +1,44 @@
+{
+  "$schema": "https://firebase.google.com/schemas/firestore-blueprint.json",
+  "entities": {
+    "Articulo": {
+      "collection": "articulos",
+      "fields": {
+        "id": { "type": "string", "description": "Unique article ID" },
+        "nombre": { "type": "string", "description": "Name of garment or article" },
+        "categoria": { "type": "string", "description": "Category name" },
+        "precio": { "type": "number", "description": "Price in Bolivianos (Bs.)" },
+        "sku": { "type": "string", "description": "SKU identifier" },
+        "descripcion": { "type": "string", "description": "Description of article" },
+        "foto": { "type": "string", "description": "Image data URL or external URL" },
+        "variantes": { "type": "array", "description": "Variants list with color, size, and stock" },
+        "fechaCreacion": { "type": "string", "description": "ISO timestamp of creation" },
+        "fechaActualizacion": { "type": "string", "description": "ISO timestamp of last update" }
+      }
+    },
+    "Venta": {
+      "collection": "ventas",
+      "fields": {
+        "id": { "type": "string", "description": "Sale identifier" },
+        "articuloId": { "type": "string", "description": "Sold article ID" },
+        "articuloNombre": { "type": "string", "description": "Name of sold article" },
+        "categoria": { "type": "string", "description": "Category of sold article" },
+        "varianteId": { "type": "string", "description": "Sold variant ID" },
+        "sku": { "type": "string", "description": "Variant or product SKU" },
+        "color": { "type": "string", "description": "Color name" },
+        "talla": { "type": "string", "description": "Size" },
+        "cantidad": { "type": "number", "description": "Pieces sold" },
+        "precioUnitario": { "type": "number", "description": "Unit price in Bolivianos" },
+        "importeTotal": { "type": "number", "description": "Total amount in Bolivianos" },
+        "fechaVenta": { "type": "string", "description": "ISO timestamp of sale" }
+      }
+    },
+    "Config": {
+      "collection": "config",
+      "fields": {
+        "categorias": { "type": "array", "description": "List of active category names" },
+        "lastUpdated": { "type": "string", "description": "Last update timestamp" }
+      }
+    }
+  }
+}

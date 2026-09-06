@@ -15,6 +15,7 @@ import { SellModal } from './components/SellModal';
 import { SalesReportModal } from './components/SalesReportModal';
 import { AdminAuthModal } from './components/AdminAuthModal';
 import { ToastContainer } from './components/ToastContainer';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { 
   PackageOpen, 
   Plus, 
@@ -229,8 +230,10 @@ const InventoryMain: React.FC = () => {
 
 export default function App() {
   return (
-    <InventoryProvider>
-      <InventoryMain />
-    </InventoryProvider>
+    <ErrorBoundary>
+      <InventoryProvider>
+        <InventoryMain />
+      </InventoryProvider>
+    </ErrorBoundary>
   );
 }

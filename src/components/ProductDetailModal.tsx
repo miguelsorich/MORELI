@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import { formatBolivianos } from '../utils/inventoryUtils';
 import { MORELI_WALINK_URL, ejecutarConsultaWhatsApp, generarMensajeWhatsApp } from '../utils/whatsappUtils';
@@ -18,7 +18,8 @@ import {
   Camera as CameraIcon,
   MessageCircle,
   ExternalLink,
-  Copy
+  Copy,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -37,6 +38,12 @@ export const ProductDetailModal: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedVariante, setSelectedVariante] = useState<Variante | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [modalImgError, setModalImgError] = useState(false);
+
+  useEffect(() => {
+    setModalImgError(false);
+  }, [articuloDetalle?.foto]);
 
   if (!articuloDetalle) return null;
 
@@ -56,8 +63,6 @@ export const ProductDetailModal: React.FC = () => {
     );
   };
 
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-
   const handleModalPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -69,14 +74,14 @@ export const ProductDetailModal: React.FC = () => {
 
     try {
       setIsUploadingPhoto(true);
-      mostrarToast('info', 'Procesando imagen...', 'Optimizando foto para el catálogo...');
-      const compressedDataUrl = await compressImage(file, 1200, 0.82);
+      mostrarToast('info', 'Optimizando foto...', 'Preparando imagen de alta velocidad para el catálogo...');
+      const compressedDataUrl = await compressImage(file, 520, 0.72);
       actualizarArticulo(articuloDetalle.id, { foto: compressedDataUrl });
       setArticuloDetalle({ ...articuloDetalle, foto: compressedDataUrl });
-      mostrarToast('success', '¡Foto Actualizada!', `La foto de "${articuloDetalle.nombre}" se guardó y está visible para los compradores.`);
+      mostrarToast('success', '¡Foto Guardada!', `La foto de "${articuloDetalle.nombre}" se guardó y sincronizó con la nube.`);
     } catch (err) {
       console.error('Error processing detail photo:', err);
-      mostrarToast('error', 'Error al subir', 'No se pudo procesar la imagen seleccionada.');
+      mostrarToast('error', 'Error al procesar foto', err instanceof Error ? err.message : 'No se pudo procesar la imagen seleccionada.');
     } finally {
       setIsUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -190,14 +195,20 @@ export const ProductDetailModal: React.FC = () => {
               
               {/* Product Photo / Placeholder */}
               <div className="w-full sm:w-48 h-48 rounded-2xl bg-[#F0EEEF] border border-stone-200 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-2xs group">
-                {articuloDetalle.foto ? (
+                {isUploadingPhoto ? (
+                  <div className="flex flex-col items-center justify-center gap-2 text-[#2A5A29] p-4 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#2A5A29]" />
+                    <span className="text-xs font-bold text-stone-700">Optimizando foto...</span>
+                    <span className="text-[10px] text-stone-500">Un momento por favor</span>
+                  </div>
+                ) : articuloDetalle.foto && !modalImgError ? (
                   <img
                     src={articuloDetalle.foto}
                     alt={articuloDetalle.nombre}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
+                    onError={() => {
+                      setModalImgError(true);
                     }}
                   />
                 ) : (
@@ -208,7 +219,7 @@ export const ProductDetailModal: React.FC = () => {
                   </div>
                 )}
 
-                {isAdmin && (
+                {isAdmin && !isUploadingPhoto && (
                   <div className="absolute bottom-2 right-2 z-10">
                     <button
                       type="button"
@@ -222,7 +233,7 @@ export const ProductDetailModal: React.FC = () => {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/jpg"
                       className="hidden"
                       onChange={handleModalPhotoUpload}
                     />

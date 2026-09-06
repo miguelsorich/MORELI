@@ -9,6 +9,18 @@ import {
 } from '../types/inventory';
 import { ARTICULOS_INICIALES, CATEGORIAS_DEFAULT, VENTAS_INICIALES } from '../data/initialData';
 import { generateAutoProductSku, generateAutoVariantSku, getHexForColor } from '../utils/inventoryUtils';
+import { idbGet, idbSet } from '../utils/storageUtils';
+import {
+  ensureFirestoreSeeded,
+  subscribeToArticulos,
+  subscribeToCategorias,
+  subscribeToVentas,
+  saveArticuloFirestore,
+  deleteArticuloFirestore,
+  saveVentaFirestore,
+  saveCategoriasFirestore,
+  syncBatchToFirestore
+} from '../services/firestoreService';
 
 interface InventoryContextType {
   articulos: Articulo[];
@@ -171,35 +183,76 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Toast notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Hydrate from server database on mount & synchronize across tabs / buyer devices
+  // Hydrate from IndexedDB first, then connect real-time Firestore Cloud Database
   useEffect(() => {
     let isMounted = true;
 
+    // 1. Fast local restore from IndexedDB (instant offline load)
+    (async () => {
+      try {
+        const savedArticulos = await idbGet<Articulo[]>(STORAGE_KEY_ARTICULOS);
+        if (savedArticulos && Array.isArray(savedArticulos) && savedArticulos.length > 0 && isMounted) {
+          setArticulos(savedArticulos);
+        }
+        const savedCats = await idbGet<string[]>(STORAGE_KEY_CATEGORIAS);
+        if (savedCats && Array.isArray(savedCats) && savedCats.length > 0 && isMounted) {
+          setCategorias(savedCats);
+        }
+        const savedVentas = await idbGet<Venta[]>(STORAGE_KEY_VENTAS);
+        if (savedVentas && Array.isArray(savedVentas) && isMounted) {
+          setVentas(savedVentas);
+        }
+      } catch (err) {
+        console.warn('Iniciando almacenamiento local:', err);
+      }
+    })();
+
+    // 2. Ensure Firestore cloud is seeded with Moreli catalog
+    ensureFirestoreSeeded().catch(err => {
+      console.warn('Firestore seed check:', err);
+    });
+
+    // 3. Real-time Cloud Subscriptions: instant sync across ALL buyers & admin devices
+    const unsubArticulos = subscribeToArticulos((cloudArts) => {
+      if (isMounted && Array.isArray(cloudArts) && cloudArts.length > 0) {
+        setArticulos(cloudArts);
+        idbSet(STORAGE_KEY_ARTICULOS, cloudArts);
+      }
+    });
+
+    const unsubCategorias = subscribeToCategorias((cloudCats) => {
+      if (isMounted && Array.isArray(cloudCats) && cloudCats.length > 0) {
+        setCategorias(cloudCats);
+        idbSet(STORAGE_KEY_CATEGORIAS, cloudCats);
+      }
+    });
+
+    const unsubVentas = subscribeToVentas((cloudVentas) => {
+      if (isMounted && Array.isArray(cloudVentas)) {
+        setVentas(cloudVentas);
+        idbSet(STORAGE_KEY_VENTAS, cloudVentas);
+      }
+    });
+
+    // 4. Local dev server sync fallback
     const cargarDesdeServidor = async () => {
       try {
         const res = await fetch('/api/inventario');
-        if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
-          if (data.success && isMounted) {
-            if (Array.isArray(data.articulos) && data.articulos.length > 0) {
-              setArticulos(data.articulos);
-            }
-            if (Array.isArray(data.categorias) && data.categorias.length > 0) {
-              setCategorias(data.categorias);
-            }
-            if (Array.isArray(data.ventas)) {
-              setVentas(data.ventas);
-            }
+          if (data.success && isMounted && Array.isArray(data.articulos) && data.articulos.length > 0) {
+            setArticulos(data.articulos);
+            idbSet(STORAGE_KEY_ARTICULOS, data.articulos);
           }
         }
       } catch (e) {
-        console.warn('Iniciando con datos locales de catálogo:', e);
+        // Safe fallback
       }
     };
-
     cargarDesdeServidor();
 
-    // Listen to broadcast messages from other tabs / windows
+    // 5. Cross-tab channel for instantaneous local tab switching
     if (syncChannel) {
       syncChannel.onmessage = (event) => {
         if (event.data?.type === 'SYNC_REQUEST') {
@@ -212,7 +265,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
     }
 
-    // Refresh when buyer switches back to this window or tab
+    // Refresh when user switches back to this window or tab
     const handleFocus = () => {
       if (document.visibilityState === 'visible') {
         cargarDesdeServidor();
@@ -224,33 +277,50 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     return () => {
       isMounted = false;
+      unsubArticulos();
+      unsubCategorias();
+      unsubVentas();
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
     };
   }, []);
 
-  // Persist to local storage
+  // Persist to IndexedDB and localStorage (with quota safety)
   useEffect(() => {
+    idbSet(STORAGE_KEY_ARTICULOS, articulos).catch(err => {
+      console.warn('idbSet articulos failed:', err);
+    });
     try {
       localStorage.setItem(STORAGE_KEY_ARTICULOS, JSON.stringify(articulos));
-    } catch (e) {
-      console.error('Error persisting articles', e);
+    } catch {
+      // If saving full array exceeds browser 5MB quota, store lightweight items without data-url images
+      try {
+        const lightweight = articulos.map(a => ({
+          ...a,
+          foto: a.foto && a.foto.startsWith('data:') ? '' : a.foto
+        }));
+        localStorage.setItem(STORAGE_KEY_ARTICULOS, JSON.stringify(lightweight));
+      } catch {
+        // Safe fallback
+      }
     }
   }, [articulos]);
 
   useEffect(() => {
+    idbSet(STORAGE_KEY_CATEGORIAS, categorias);
     try {
       localStorage.setItem(STORAGE_KEY_CATEGORIAS, JSON.stringify(categorias));
-    } catch (e) {
-      console.error('Error persisting categories', e);
+    } catch {
+      // safe
     }
   }, [categorias]);
 
   useEffect(() => {
+    idbSet(STORAGE_KEY_VENTAS, ventas);
     try {
       localStorage.setItem(STORAGE_KEY_VENTAS, JSON.stringify(ventas));
-    } catch (e) {
-      console.error('Error persisting sales', e);
+    } catch {
+      // safe
     }
   }, [ventas]);
 
@@ -301,7 +371,9 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       mostrarToast('info', 'Categoría existente', `"${nombre}" ya está registrada.`);
       return;
     }
-    setCategorias(prev => [...prev, nombre]);
+    const nextCats = [...categorias, nombre];
+    setCategorias(nextCats);
+    saveCategoriasFirestore(nextCats);
     mostrarToast('success', 'Categoría agregada', `Se añadió "${nombre}" a la lista.`);
   };
 
@@ -346,10 +418,16 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setArticulos(prev => [articuloCompleto, ...prev]);
 
       if (nuevo.categoria && !categorias.includes(nuevo.categoria)) {
-        setCategorias(prev => [...prev, nuevo.categoria]);
+        const nextCats = [...categorias, nuevo.categoria];
+        setCategorias(nextCats);
+        saveCategoriasFirestore(nextCats);
       }
 
-      // Persist to server database
+      // Persist to Firestore Cloud & local server fallback
+      saveArticuloFirestore(articuloCompleto).catch(err => {
+        console.warn('Error guardando en Firestore:', err);
+      });
+
       fetch('/api/inventario/articulo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -410,7 +488,18 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setArticuloDetalle(articuloActualizado);
       }
 
-      // Persist directly to server database
+      // Persist directly to Firestore Cloud (Real-time sync to all buyers)
+      if (articuloActualizado) {
+        saveArticuloFirestore(articuloActualizado).catch(err => {
+          console.warn('Error guardando en Firestore:', err);
+        });
+      } else {
+        deleteArticuloFirestore(id).catch(err => {
+          console.warn('Error eliminando en Firestore:', err);
+        });
+      }
+
+      // Persist to server fallback
       fetch(`/api/inventario/articulo/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -421,10 +510,14 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // Broadcast update across tabs so buyers immediately see changes/photos
       if (syncChannel && articuloActualizado) {
-        syncChannel.postMessage({ type: 'ARTICLE_UPDATED', articulo: articuloActualizado });
+        try {
+          syncChannel.postMessage({ type: 'ARTICLE_UPDATED', articulo: articuloActualizado });
+        } catch {
+          // Channel clone error fallback
+        }
       }
 
-      mostrarToast('success', 'Cambios guardados', 'El catálogo ha sido actualizado.');
+      mostrarToast('success', 'Cambios guardados', 'El catálogo ha sido actualizado en la nube.');
       return true;
     } catch (e) {
       console.error(e);
@@ -439,6 +532,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setArticulos(prev => prev.filter(a => a.id !== id));
       if (articuloDetalle?.id === id) setArticuloDetalle(null);
       if (articuloEdicion?.id === id) setArticuloEdicion(null);
+
+      // Persist to Firestore Cloud
+      deleteArticuloFirestore(id).catch(err => {
+        console.warn('Error eliminando de Firestore:', err);
+      });
 
       // Persist to server
       fetch(`/api/inventario/articulo/${id}`, {
@@ -509,6 +607,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
 
     if (articuloActualizado) {
+      saveArticuloFirestore(articuloActualizado).catch(err => {
+        console.warn('Error guardando variante en Firestore:', err);
+      });
+
       fetch(`/api/inventario/articulo/${articuloId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -518,6 +620,10 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (syncChannel) {
         syncChannel.postMessage({ type: 'ARTICLE_UPDATED', articulo: articuloActualizado });
       }
+    } else {
+      deleteArticuloFirestore(articuloId).catch(err => {
+        console.warn('Error eliminando artículo agotado en Firestore:', err);
+      });
     }
   };
 
@@ -566,6 +672,7 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setVentas(prev => [nuevaVenta, ...prev]);
 
       // 2. Decrement stock & auto-remove if 0
+      let articuloActualizado: Articulo | null = null;
       setArticulos(prev => {
         const nextList: Articulo[] = [];
 
@@ -581,15 +688,15 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             const remainingStock = updatedVariantes.reduce((sum, v) => sum + (v.cantidad || 0), 0);
 
             if (remainingStock > 0) {
-              const actualizado = {
+              articuloActualizado = {
                 ...art,
                 variantes: updatedVariantes,
                 fechaActualizacion: now
               };
               if (articuloDetalle && articuloDetalle.id === articulo.id) {
-                setArticuloDetalle(actualizado);
+                setArticuloDetalle(articuloActualizado);
               }
-              nextList.push(actualizado);
+              nextList.push(articuloActualizado);
             } else {
               // Complete article sold out -> Automatically removed from active list!
               if (articuloDetalle && articuloDetalle.id === articulo.id) {
@@ -604,7 +711,21 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return nextList;
       });
 
-      // Persist sale to server database
+      // Persist sale and stock update to Firestore Cloud
+      saveVentaFirestore(nuevaVenta).catch(err => {
+        console.warn('Error guardando venta en Firestore:', err);
+      });
+      if (articuloActualizado) {
+        saveArticuloFirestore(articuloActualizado).catch(err => {
+          console.warn('Error actualizando artículo en Firestore:', err);
+        });
+      } else {
+        deleteArticuloFirestore(articulo.id).catch(err => {
+          console.warn('Error eliminando artículo agotado en Firestore:', err);
+        });
+      }
+
+      // Persist sale to server database fallback
       fetch('/api/inventario/venta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -649,6 +770,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setCategorias(actualizadasCats);
     setArticulos(actualizadosArts);
 
+    // Sync to Firestore Cloud
+    syncBatchToFirestore(actualizadosArts, actualizadasCats, ventas).catch(err => {
+      console.warn('Error sincronizando lote con Firestore:', err);
+    });
+
     fetch('/api/inventario/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -678,6 +804,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     localStorage.removeItem(STORAGE_KEY_ARTICULOS);
     localStorage.removeItem(STORAGE_KEY_CATEGORIAS);
     localStorage.removeItem(STORAGE_KEY_VENTAS);
+
+    // Sync reset to Firestore Cloud
+    syncBatchToFirestore(ARTICULOS_INICIALES, CATEGORIAS_DEFAULT, VENTAS_INICIALES).catch(err => {
+      console.warn('Error restableciendo Firestore:', err);
+    });
 
     fetch('/api/inventario/reset', { method: 'POST' })
       .catch(err => console.error('Error restableciendo catálogo en servidor:', err));
@@ -718,6 +849,11 @@ export const InventoryProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (Array.isArray(parsed.ventas)) {
           setVentas(parsed.ventas);
         }
+
+        // Sync restore to Firestore Cloud
+        syncBatchToFirestore(parsed.articulos, parsed.categorias, parsed.ventas || []).catch(err => {
+          console.warn('Error restaurando en Firestore:', err);
+        });
 
         fetch('/api/inventario/sync', {
           method: 'POST',
