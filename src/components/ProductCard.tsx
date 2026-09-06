@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Articulo } from '../types/inventory';
 import { useInventory } from '../context/InventoryContext';
 import { formatBolivianos } from '../utils/inventoryUtils';
@@ -8,7 +8,8 @@ import {
   Trash2, 
   Shirt,
   ShoppingBag,
-  CheckCircle2
+  CheckCircle2,
+  Camera
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -22,8 +23,32 @@ export const ProductCard: React.FC<ProductCardProps> = ({ articulo }) => {
     setArticuloDetalle, 
     setArticuloEdicion, 
     setArticuloEliminar,
-    setSellTarget
+    setSellTarget,
+    actualizarArticulo,
+    mostrarToast
   } = useInventory();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleQuickUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      mostrarToast('error', 'Formato no soportado', 'Por favor selecciona un archivo de imagen (JPG, PNG, WebP).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        actualizarArticulo(articulo.id, { foto: result });
+        mostrarToast('success', 'Foto Cargada', `Se guardó la foto para "${articulo.nombre}".`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const totalStock = articulo.variantes.reduce((sum, v) => sum + (Number(v.cantidad) || 0), 0);
 
@@ -82,8 +107,33 @@ export const ProductCard: React.FC<ProductCardProps> = ({ articulo }) => {
           </span>
         </div>
 
+        {/* Quick Upload Photo Button for Admin */}
+        {isAdmin && (
+          <div className="absolute bottom-3 right-3 z-20">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/95 hover:bg-white text-stone-800 hover:text-[#2A5A29] shadow-md border border-stone-200 transition-all text-xs font-bold cursor-pointer"
+              title="Cargar foto para este artículo"
+            >
+              <Camera className="w-3.5 h-3.5 text-[#2A5A29]" />
+              <span>{articulo.foto ? 'Cambiar Foto' : 'Subir Foto'}</span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleQuickUpload}
+            />
+          </div>
+        )}
+
         {/* Quick view hover icon */}
-        <div className="absolute inset-0 bg-[#2A5A29]/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        <div className="absolute inset-0 bg-[#2A5A29]/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/95 text-stone-900 text-xs font-bold shadow-md">
             <Eye className="w-3.5 h-3.5 text-[#2A5A29]" />
             Ver Detalles & Tallas

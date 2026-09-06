@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useInventory } from '../context/InventoryContext';
 import { formatBolivianos } from '../utils/inventoryUtils';
 import { 
@@ -11,7 +11,8 @@ import {
   Calendar as CalendarIcon, 
   Layers as LayersIcon, 
   CheckCircle2 as CheckIcon,
-  ShoppingBag as SellIcon
+  ShoppingBag as SellIcon,
+  Camera as CameraIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -23,10 +24,35 @@ export const ProductDetailModal: React.FC = () => {
     setArticuloEdicion, 
     setArticuloEliminar,
     setSellTarget,
-    actualizarStockVariante 
+    actualizarStockVariante,
+    actualizarArticulo,
+    mostrarToast
   } = useInventory();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   if (!articuloDetalle) return null;
+
+  const handleModalPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      mostrarToast('error', 'Formato no válido', 'Por favor selecciona una imagen (JPG, PNG, WebP).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        actualizarArticulo(articuloDetalle.id, { foto: result });
+        setArticuloDetalle({ ...articuloDetalle, foto: result });
+        mostrarToast('success', 'Foto Actualizada', `Se guardó la foto para "${articuloDetalle.nombre}".`);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const totalStock = articuloDetalle.variantes.reduce((sum, v) => sum + (Number(v.cantidad) || 0), 0);
   const valorTotal = totalStock * (articuloDetalle.precio || 0);
@@ -134,7 +160,7 @@ export const ProductDetailModal: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-6 items-start">
               
               {/* Product Photo / Placeholder */}
-              <div className="w-full sm:w-48 h-48 rounded-2xl bg-[#F0EEEF] border border-stone-200 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-2xs">
+              <div className="w-full sm:w-48 h-48 rounded-2xl bg-[#F0EEEF] border border-stone-200 overflow-hidden flex-shrink-0 flex items-center justify-center relative shadow-2xs group">
                 {articuloDetalle.foto ? (
                   <img
                     src={articuloDetalle.foto}
@@ -150,6 +176,27 @@ export const ProductDetailModal: React.FC = () => {
                     <ShirtIcon className="w-10 h-10 stroke-[1.5] text-[#9F7652] mb-1.5" />
                     <span className="text-xs font-bold text-stone-600">{articuloDetalle.categoria}</span>
                     <span className="text-[10px] text-[#535456]">Colección Moreli</span>
+                  </div>
+                )}
+
+                {isAdmin && (
+                  <div className="absolute bottom-2 right-2 z-10">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/95 hover:bg-white text-stone-800 hover:text-[#2A5A29] shadow-md border border-stone-200 transition-all text-xs font-bold cursor-pointer"
+                      title="Cargar o cambiar foto"
+                    >
+                      <CameraIcon className="w-3.5 h-3.5 text-[#2A5A29]" />
+                      <span>{articuloDetalle.foto ? 'Cambiar Foto' : 'Subir Foto'}</span>
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleModalPhotoUpload}
+                    />
                   </div>
                 )}
               </div>

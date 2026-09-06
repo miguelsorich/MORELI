@@ -80,9 +80,9 @@ interface InventoryContextType {
   eliminarToast: (id: string) => void;
 }
 
-const STORAGE_KEY_ARTICULOS = 'moreli_inventario_prendas_v3';
-const STORAGE_KEY_CATEGORIAS = 'moreli_inventario_categorias_v3';
-const STORAGE_KEY_VENTAS = 'moreli_inventario_ventas_v3';
+const STORAGE_KEY_ARTICULOS = 'moreli_inventario_prendas_v4';
+const STORAGE_KEY_CATEGORIAS = 'moreli_inventario_categorias_v4';
+const STORAGE_KEY_VENTAS = 'moreli_inventario_ventas_v4';
 const STORAGE_KEY_ADMIN_AUTH = 'moreli_admin_auth_v1';
 const ADMIN_PASSWORD_HASH = '3822';
 
